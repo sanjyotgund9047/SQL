@@ -1,0 +1,74 @@
+-- Create tables
+CREATE TABLE Student (
+    Sno INTEGER PRIMARY KEY,
+    sname VARCHAR(20) NOT NULL,
+    sclass VARCHAR(10),
+    saddr VARCHAR(30)
+);
+
+CREATE TABLE Teacher (
+    Tno INTEGER PRIMARY KEY,
+    tname VARCHAR(20) NOT NULL,
+    qualification CHAR(15),
+    experience INTEGER CHECK (experience >= 0)
+);
+
+CREATE TABLE StudentTeacher (
+    Sno INTEGER REFERENCES Student(Sno),
+    Tno INTEGER REFERENCES Teacher(Tno),
+    subject VARCHAR(50) NOT NULL,
+    PRIMARY KEY (Sno, Tno)
+);
+
+-- Create views
+-- 1. To display teacher details having qualification as 'Ph.D.'.
+CREATE VIEW PhDTutors AS
+SELECT *
+FROM Teacher
+WHERE qualification = 'Ph.D.';
+
+-- 2. To display student details living in 'Pune'.
+CREATE VIEW PuneStudents AS
+SELECT *
+FROM Student
+WHERE saddr = 'Pune';
+
+-- Triggers
+-- 1. Trigger before inserting experience into a teacher table; experience should be minimum 5 years. Display appropriate message.
+CREATE OR REPLACE FUNCTION validateTeacherExperience()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.experience < 5 THEN
+        RAISE EXCEPTION 'Invalid experience. Minimum experience required is 5 years.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_teacher_experience
+BEFORE INSERT ON Teacher
+FOR EACH ROW
+EXECUTE FUNCTION validateTeacherExperience();
+
+-- Cursors
+-- 2. Cursor to list the details of the teachers who are teaching to a student named ' ' (Accept student name as an input parameter).
+CREATE OR REPLACE FUNCTION getTeachersForStudent(studentNameParam VARCHAR)
+RETURNS SETOF Teacher AS $$
+DECLARE
+    teacherCursor CURSOR FOR
+        SELECT T.*
+        FROM Teacher T
+        JOIN StudentTeacher ST ON T.Tno = ST.Tno
+        JOIN Student S ON ST.Sno = S.Sno
+        WHERE S.sname = studentNameParam;
+    teacherDetails Teacher%ROWTYPE;
+BEGIN
+    OPEN teacherCursor;
+    LOOP
+        FETCH teacherCursor INTO teacherDetails;
+        EXIT WHEN NOT FOUND;
+        RETURN NEXT teacherDetails;
+    END LOOP;
+    CLOSE teacherCursor;
+END;
+$$ LANGUAGE plpgsql;

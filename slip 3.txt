@@ -1,0 +1,90 @@
+-- Create tables
+CREATE TABLE Branch (
+    Bid INTEGER PRIMARY KEY,
+    brname VARCHAR(30),
+    brcity VARCHAR(10)
+);
+
+CREATE TABLE Customer (
+    Cno INTEGER PRIMARY KEY,
+    cname VARCHAR(20),
+    caddr VARCHAR(35),
+    city VARCHAR(15)
+);
+
+CREATE TABLE Loan_application (
+    Lno INTEGER PRIMARY KEY,
+    l_amt_required MONEY CHECK (l_amt_required > 0),
+    lamtapproved MONEY,
+    l_date DATE
+);
+
+-- Create ternary relationship table
+CREATE TABLE Ternary (
+    Bid INTEGER REFERENCES Branch(Bid),
+    Cno INTEGER REFERENCES Customer(Cno),
+    Lno INTEGER REFERENCES Loan_application(Lno),
+    PRIMARY KEY (Bid, Cno, Lno)
+);
+
+-- Create views
+-- 1. To display the names of customers who required a loan > 2,00,000.
+CREATE VIEW CustomersLoanGreaterThan200000 AS
+SELECT C.*
+FROM Customer C
+JOIN Ternary T ON C.Cno = T.Cno
+JOIN Loan_application LA ON T.Lno = LA.Lno
+WHERE LA.l_amt_required > 200000;
+
+-- 2. To display the branch-wise name of customers.
+CREATE VIEW BranchWiseCustomers AS
+SELECT B.brname, C.*
+FROM Customer C
+JOIN Ternary T ON C.Cno = T.Cno
+JOIN Branch B ON T.Bid = B.Bid;
+
+-- Triggers
+-- 1. Trigger before inserting a record of customer in the customer table.
+CREATE OR REPLACE FUNCTION validateCustomerNumber()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.Cno <= 0 THEN
+        RAISE EXCEPTION 'Customer number must be greater than zero';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_customer_number
+BEFORE INSERT ON Customer
+FOR EACH ROW
+EXECUTE FUNCTION validateCustomerNumber();
+
+-- Cursors
+-- 2. Cursor to display customer details along with their approved loan amount.
+CREATE OR REPLACE FUNCTION displayCustomerLoanDetails()
+RETURNS VOID AS $$
+DECLARE
+    customerCursor CURSOR FOR
+        SELECT C.cno, C.cname, LA.lamtapproved
+        FROM Customer C
+        JOIN Ternary T ON C.Cno = T.Cno
+        JOIN Loan_application LA ON T.Lno = LA.Lno;
+
+    customerRecord RECORD;
+BEGIN
+    OPEN customerCursor;
+    LOOP
+        FETCH customerCursor INTO customerRecord;
+        EXIT WHEN NOT FOUND;
+
+        -- Display or process the data as needed
+        RAISE NOTICE 'Customer: %, Name: %, Approved Loan Amount: %', customerRecord.cno, customerRecord.cname, customerRecord.lamtapproved;
+    END LOOP;
+
+    CLOSE customerCursor;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Call the cursor function
+SELECT displayCustomerLoanDetails();

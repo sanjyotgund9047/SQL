@@ -1,0 +1,71 @@
+-- Create tables
+CREATE TABLE Student (
+    Rollno INTEGER PRIMARY KEY,
+    sname VARCHAR(30) NOT NULL,
+    city VARCHAR(50),
+    class VARCHAR(10)
+);
+
+CREATE TABLE Subject (
+    Scode VARCHAR(10) PRIMARY KEY,
+    subject_name VARCHAR(20)
+);
+
+CREATE TABLE StudentSubject (
+    Rollno INTEGER REFERENCES Student(Rollno),
+    Scode VARCHAR(10) REFERENCES Subject(Scode),
+    marks_scored INTEGER,
+    PRIMARY KEY (Rollno, Scode)
+);
+
+-- Create views
+-- 1. To display names of students in class 'FYBCA'.
+CREATE VIEW FYBCAStudents AS
+SELECT sname
+FROM Student
+WHERE class = 'FYBCA';
+
+-- 2. To display students' name, subject, and marks who has scored more than 90 marks.
+CREATE VIEW HighScorers AS
+SELECT S.sname, SS.subject_name, SS.marks_scored
+FROM StudentSubject SS
+JOIN Student S ON SS.Rollno = S.Rollno
+WHERE SS.marks_scored > 90;
+
+-- Triggers
+-- 1. Trigger before inserting Rollno into the Student table. Display an error message if the entered Rollno is less than or equal to zero.
+CREATE OR REPLACE FUNCTION validateRollno()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.Rollno <= 0 THEN
+        RAISE EXCEPTION 'Invalid Rollno. Rollno should be greater than zero.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_rollno
+BEFORE INSERT ON Student
+FOR EACH ROW
+EXECUTE FUNCTION validateRollno();
+
+-- Functions using cursor
+-- 2. Function using a cursor to calculate the total marks of each student and display it.
+CREATE OR REPLACE FUNCTION calculateTotalMarks()
+RETURNS TABLE (sname VARCHAR, total_marks INTEGER) AS $$
+DECLARE
+    studentCursor CURSOR FOR
+        SELECT S.sname, SUM(SS.marks_scored) AS total_marks
+        FROM StudentSubject SS
+        JOIN Student S ON SS.Rollno = S.Rollno
+        GROUP BY S.sname;
+    studentDetails RECORD;
+BEGIN
+    OPEN studentCursor;
+    FOR studentDetails IN studentCursor
+    LOOP
+        RETURN NEXT studentDetails;
+    END LOOP;
+    CLOSE studentCursor;
+END;
+$$ LANGUAGE plpgsql;

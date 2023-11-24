@@ -1,0 +1,83 @@
+-- Create tables
+CREATE TABLE Movie (
+    m_name VARCHAR(25),
+    release_year INTEGER NOT NULL CHECK (release_year <= EXTRACT(YEAR FROM CURRENT_DATE)),
+    budget MONEY,
+    PRIMARY KEY (m_name, release_year)
+);
+
+CREATE TABLE Actor (
+    a_name CHAR(30) PRIMARY KEY,
+    city VARCHAR(30)
+);
+
+CREATE TABLE Producer (
+    producer_id INTEGER PRIMARY KEY,
+    pname CHAR(30),
+    p_address VARCHAR(30)
+);
+
+CREATE TABLE MovieActor (
+    m_name VARCHAR(25) REFERENCES Movie(m_name),
+    release_year INTEGER REFERENCES Movie(release_year),
+    a_name CHAR(30) REFERENCES Actor(a_name),
+    role VARCHAR(20),
+    charges MONEY,
+    PRIMARY KEY (m_name, release_year, a_name)
+);
+
+CREATE TABLE ProducerMovie (
+    producer_id INTEGER REFERENCES Producer(producer_id),
+    m_name VARCHAR(25) REFERENCES Movie(m_name),
+    release_year INTEGER REFERENCES Movie(release_year),
+    PRIMARY KEY (producer_id, m_name, release_year)
+);
+
+-- Create views
+-- 1. To display movie names produced by 'Mr. Subhash Ghai'.
+CREATE VIEW MoviesBySubhashGhai AS
+SELECT m_name, release_year
+FROM ProducerMovie pm
+JOIN Producer p ON pm.producer_id = p.producer_id
+WHERE p.pname = 'Mr. Subhash Ghai';
+
+-- 2. To display actor names who do not live in Mumbai or Pune city.
+CREATE VIEW ActorsNotInMumbaiPune AS
+SELECT a_name
+FROM Actor
+WHERE city NOT IN ('Mumbai', 'Pune');
+
+-- Triggers
+-- 1. Trigger before inserting a record into the movie table; check release_year should not be greater than the current year. Display an appropriate message.
+CREATE OR REPLACE FUNCTION validateReleaseYear()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.release_year > EXTRACT(YEAR FROM CURRENT_DATE) THEN
+        RAISE EXCEPTION 'Invalid release year. Release year should not be greater than the current year.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_release_year
+BEFORE INSERT ON Movie
+FOR EACH ROW
+EXECUTE FUNCTION validateReleaseYear();
+
+-- Cursor Function
+-- 2. Cursor using a function to list movie-wise charges of 'Amitabh Bachchan'.
+CREATE OR REPLACE FUNCTION getMovieWiseCharges(actorNameParam CHAR)
+RETURNS SETOF RECORD AS $$
+DECLARE
+    movieRecord RECORD;
+BEGIN
+    FOR movieRecord IN
+        SELECT m_name, release_year, charges
+        FROM MovieActor
+        WHERE a_name = actorNameParam
+    LOOP
+        RETURN NEXT movieRecord;
+    END LOOP;
+    RETURN;
+END;
+$$ LANGUAGE plpgsql;

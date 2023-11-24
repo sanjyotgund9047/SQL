@@ -1,0 +1,62 @@
+-- Create tables
+CREATE TABLE Student (
+    Rollno INTEGER PRIMARY KEY,
+    sname VARCHAR(30) NOT NULL,
+    city VARCHAR(50),
+    class VARCHAR(10)
+);
+
+CREATE TABLE Subject (
+    Scode VARCHAR(10) PRIMARY KEY,
+    subject_name VARCHAR(20)
+);
+
+CREATE TABLE StudentSubject (
+    Rollno INTEGER REFERENCES Student(Rollno),
+    Scode VARCHAR(10) REFERENCES Subject(Scode),
+    marks_scored INTEGER CHECK (marks_scored >= 0 AND marks_scored <= 100),
+    PRIMARY KEY (Rollno, Scode)
+);
+
+-- Create views
+-- 1. To display details of students whose name starts with the letter 'A'.
+CREATE VIEW StudentsStartingWithA AS
+SELECT *
+FROM Student
+WHERE sname LIKE 'A%';
+
+-- 2. To display details of students who have scored less than 40 marks.
+CREATE VIEW LowScorers AS
+SELECT S.*, SS.marks_scored
+FROM StudentSubject SS
+JOIN Student S ON SS.Rollno = S.Rollno
+WHERE SS.marks_scored < 40;
+
+-- Triggers
+-- 1. Trigger to ensure that the marks entered for a student with respect to a subject are never < 0 and greater than 100.
+CREATE OR REPLACE FUNCTION validateMarks()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.marks_scored < 0 OR NEW.marks_scored > 100 THEN
+        RAISE EXCEPTION 'Invalid marks. Marks should be between 0 and 100.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_marks
+BEFORE INSERT OR UPDATE ON StudentSubject
+FOR EACH ROW
+EXECUTE FUNCTION validateMarks();
+
+-- Stored Function
+-- 2. Stored function to accept city as an input parameter and display student details.
+CREATE OR REPLACE FUNCTION getStudentsByCity(cityParam VARCHAR)
+RETURNS TABLE (Rollno INTEGER, sname VARCHAR, class VARCHAR) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT Rollno, sname, class
+    FROM Student
+    WHERE city = cityParam;
+END;
+$$ LANGUAGE plpgsql;

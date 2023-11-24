@@ -1,0 +1,69 @@
+-- Create tables
+CREATE TABLE Student (
+    Sno INTEGER PRIMARY KEY,
+    sname VARCHAR(20) NOT NULL,
+    sclass VARCHAR(10),
+    saddr VARCHAR(30)
+);
+
+CREATE TABLE Teacher (
+    Tno INTEGER PRIMARY KEY,
+    tname VARCHAR(20) NOT NULL,
+    qualification CHAR(15),
+    experience INTEGER CHECK (experience >= 0)
+);
+
+CREATE TABLE StudentTeacher (
+    Sno INTEGER REFERENCES Student(Sno),
+    Tno INTEGER REFERENCES Teacher(Tno),
+    subject VARCHAR(50) NOT NULL,
+    PRIMARY KEY (Sno, Tno)
+);
+
+-- Create views
+-- 1. To display details of teachers having experience > 5 years.
+CREATE VIEW ExperiencedTeachers AS
+SELECT *
+FROM Teacher
+WHERE experience > 5;
+
+-- 2. To display details of teachers whose name starts with the letter 'S'.
+CREATE VIEW TeachersWithNameStartingS AS
+SELECT *
+FROM Teacher
+WHERE tname LIKE 'S%';
+
+-- Triggers
+-- 1. Trigger before updating a student’s class from the student table. Display appropriate message.
+CREATE OR REPLACE FUNCTION validateStudentClassUpdate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.sclass IS NULL OR NEW.sclass = '' THEN
+        RAISE EXCEPTION 'Invalid student class. Class cannot be empty or null.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_student_class_update
+BEFORE UPDATE ON Student
+FOR EACH ROW
+EXECUTE FUNCTION validateStudentClassUpdate();
+
+-- Functions
+-- 2. Function to count the number of teachers who are teaching to a student named '' (Accept student name as an input parameter).
+CREATE OR REPLACE FUNCTION countTeachersForStudent(studentNameParam VARCHAR)
+RETURNS INTEGER AS $$
+DECLARE
+    teacherCount INTEGER;
+BEGIN
+    SELECT COUNT(DISTINCT T.Tno)
+    INTO teacherCount
+    FROM Teacher T
+    JOIN StudentTeacher ST ON T.Tno = ST.Tno
+    JOIN Student S ON ST.Sno = S.Sno
+    WHERE S.sname = studentNameParam;
+
+    RETURN teacherCount;
+END;
+$$ LANGUAGE plpgsql;

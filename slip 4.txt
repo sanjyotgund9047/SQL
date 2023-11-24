@@ -1,0 +1,80 @@
+-- Create tables
+CREATE TABLE Bus (
+    Bus_no INT PRIMARY KEY,
+    capacity INT NOT NULL,
+    depot_name VARCHAR(20)
+);
+
+CREATE TABLE Route (
+    Route_no INT PRIMARY KEY,
+    source VARCHAR(20),
+    destination VARCHAR(20),
+    no_of_stations INT
+);
+
+CREATE TABLE Driver (
+    Driver_no INT PRIMARY KEY,
+    driver_name VARCHAR(20),
+    license_no INT UNIQUE,
+    address VARCHAR(20),
+    age INT,
+    salary FLOAT
+);
+
+CREATE TABLE BusRoute (
+    Bus_no INT REFERENCES Bus(Bus_no),
+    Route_no INT REFERENCES Route(Route_no),
+    PRIMARY KEY (Bus_no, Route_no)
+);
+
+CREATE TABLE DriverBus (
+    Driver_no INT REFERENCES Driver(Driver_no),
+    Bus_no INT REFERENCES Bus(Bus_no),
+    Shift INT CHECK (Shift IN (1, 2)),
+    Date_of_duty_allotted DATE,
+    PRIMARY KEY (Driver_no, Bus_no, Shift)
+);
+
+-- Create views
+-- 1. To display driver details working in Morning shift.
+CREATE VIEW MorningShiftDrivers AS
+SELECT D.*
+FROM Driver D
+JOIN DriverBus DB ON D.Driver_no = DB.Driver_no
+WHERE DB.Shift = 1;
+
+-- 2. To display driver details having salary > 20,000.
+CREATE VIEW HighSalaryDrivers AS
+SELECT *
+FROM Driver
+WHERE salary > 20000;
+
+-- Triggers
+-- 1. Trigger before inserting the driver record in the driver table.
+CREATE OR REPLACE FUNCTION validateDriverAge()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.age < 18 OR NEW.age > 35 THEN
+        RAISE EXCEPTION 'Invalid input: Age must be between 18 and 35';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_driver_age
+BEFORE INSERT ON Driver
+FOR EACH ROW
+EXECUTE FUNCTION validateDriverAge();
+
+-- Stored Function
+-- 2. Stored function to display details of buses running on a specific route_no.
+CREATE OR REPLACE FUNCTION getBusesOnRoute(routeNo INT)
+RETURNS TABLE (Bus_no INT, capacity INT, depot_name VARCHAR(20)) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT B.*
+    FROM Bus B
+    JOIN BusRoute BR ON B.Bus_no = BR.Bus_no
+    WHERE BR.Route_no = routeNo;
+END;
+$$ LANGUAGE plpgsql;

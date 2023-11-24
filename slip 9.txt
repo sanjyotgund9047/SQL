@@ -1,0 +1,78 @@
+-- Create tables
+CREATE TABLE Project (
+    Pno INT PRIMARY KEY,
+    pname VARCHAR(30) NOT NULL,
+    ptype VARCHAR(20),
+    duration INTEGER CHECK (duration > 0)
+);
+
+CREATE TABLE Employee (
+    Eno INT PRIMARY KEY,
+    ename VARCHAR(20),
+    qualification CHAR(15),
+    joining_date DATE
+);
+
+CREATE TABLE ProjectEmployee (
+    Pno INT REFERENCES Project(Pno),
+    Eno INT REFERENCES Employee(Eno),
+    start_date_of_Project DATE,
+    no_of_hours_worked INTEGER,
+    PRIMARY KEY (Pno, Eno)
+);
+
+-- Create views
+-- 1. To display the project name, project type, and project start date, sorted by project start date.
+CREATE VIEW ProjectDetails AS
+SELECT P.pname, P.ptype, PE.start_date_of_Project
+FROM Project P
+JOIN ProjectEmployee PE ON P.Pno = PE.Pno
+ORDER BY PE.start_date_of_Project;
+
+-- 2. To display details of employees working on 'Robotics' project.
+CREATE VIEW RoboticsEmployees AS
+SELECT E.*
+FROM Employee E
+JOIN ProjectEmployee PE ON E.Eno = PE.Eno
+JOIN Project P ON PE.Pno = P.Pno
+WHERE P.pname = 'Robotics';
+
+-- Triggers
+-- 1. Trigger before inserting the duration into the project table and make sure that the duration is always greater than zero. Display appropriate message.
+CREATE OR REPLACE FUNCTION validateProjectDuration()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.duration <= 0 THEN
+        RAISE EXCEPTION 'Invalid duration. Duration must be greater than zero';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_project_duration
+BEFORE INSERT OR UPDATE ON Project
+FOR EACH ROW
+EXECUTE FUNCTION validateProjectDuration();
+
+-- Functions using cursor
+-- 2. Function using cursor to accept project name as an input parameter and display names of employees working on that project.
+CREATE OR REPLACE FUNCTION getEmployeesOnProject(projectName VARCHAR)
+RETURNS SETOF VARCHAR AS $$
+DECLARE
+    employeeCursor CURSOR FOR
+        SELECT E.ename
+        FROM Employee E
+        JOIN ProjectEmployee PE ON E.Eno = PE.Eno
+        JOIN Project P ON PE.Pno = P.Pno
+        WHERE P.pname = projectName;
+    employeeName VARCHAR;
+BEGIN
+    OPEN employeeCursor;
+    LOOP
+        FETCH employeeCursor INTO employeeName;
+        EXIT WHEN NOT FOUND;
+        RETURN NEXT employeeName;
+    END LOOP;
+    CLOSE employeeCursor;
+END;
+$$ LANGUAGE plpgsql;

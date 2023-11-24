@@ -1,0 +1,70 @@
+-- Create tables
+CREATE TABLE Project (
+    Pno INT PRIMARY KEY,
+    pname VARCHAR(30) NOT NULL,
+    ptype VARCHAR(20),
+    duration INTEGER
+);
+
+CREATE TABLE Employee (
+    Eno INT PRIMARY KEY,
+    ename VARCHAR(20),
+    qualification CHAR(15),
+    joining_date DATE
+);
+
+CREATE TABLE ProjectEmployee (
+    Pno INT REFERENCES Project(Pno),
+    Eno INT REFERENCES Employee(Eno),
+    start_date_of_Project DATE,
+    no_of_hours_worked INTEGER,
+    PRIMARY KEY (Pno, Eno)
+);
+
+-- Create views
+-- 1. To display employee details working on 'ERP' Project.
+CREATE VIEW ERPProjectEmployees AS
+SELECT E.*
+FROM Employee E
+JOIN ProjectEmployee PE ON E.Eno = PE.Eno
+JOIN Project P ON PE.Pno = P.Pno
+WHERE P.pname = 'ERP';
+
+-- 2. To display employee and project details where employees worked more than 100 hours.
+CREATE VIEW EmployeeProjectDetailsMoreThan100Hours AS
+SELECT E.*, P.*, PE.no_of_hours_worked
+FROM Employee E
+JOIN ProjectEmployee PE ON E.Eno = PE.Eno
+JOIN Project P ON PE.Pno = P.Pno
+WHERE PE.no_of_hours_worked > 100;
+
+-- Triggers
+-- 1. Trigger after deleting Project record from Project table. Display the message "Project record is being deleted".
+CREATE OR REPLACE FUNCTION displayDeleteMessage()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE NOTICE 'Project record is being deleted';
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER display_delete_message
+AFTER DELETE ON Project
+FOR EACH ROW
+EXECUTE FUNCTION displayDeleteMessage();
+
+-- Functions using cursor
+-- 2. Function to find the number of employees whose date of joining is before 03-10-2022.
+CREATE OR REPLACE FUNCTION getEmployeeCountBeforeDate(joiningDateParam DATE)
+RETURNS INTEGER AS $$
+DECLARE
+    employeeCount INTEGER;
+BEGIN
+    SELECT COUNT(*)
+    INTO employeeCount
+    FROM Employee
+    WHERE joining_date < joiningDateParam;
+
+    RETURN employeeCount;
+END;
+$$ LANGUAGE plpgsql;

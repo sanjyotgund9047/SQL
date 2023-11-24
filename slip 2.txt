@@ -1,0 +1,83 @@
+-- Create tables
+CREATE TABLE Branch (
+    Bid INTEGER PRIMARY KEY,
+    brname VARCHAR(30),
+    brcity VARCHAR(10)
+);
+
+CREATE TABLE Customer (
+    Cno INTEGER PRIMARY KEY,
+    cname VARCHAR(20),
+    caddr VARCHAR(35),
+    city VARCHAR(15)
+);
+
+CREATE TABLE Loan_application (
+    Lno INTEGER PRIMARY KEY,
+    l_amt_required MONEY CHECK (l_amt_required > 0),
+    lamtapproved MONEY CHECK (lamtapproved <= l_amt_required),
+    l_date DATE
+);
+
+-- Create ternary relationship table
+CREATE TABLE Ternary (
+    Bid INTEGER REFERENCES Branch(Bid),
+    Cno INTEGER REFERENCES Customer(Cno),
+    Lno INTEGER REFERENCES Loan_application(Lno),
+    PRIMARY KEY (Bid, Cno, Lno)
+);
+
+-- Create views
+-- 1. To display customer details who have applied for a loan of 5,00,000.
+CREATE VIEW CustomersWithLoan500000 AS
+SELECT C.*
+FROM Customer C
+JOIN Ternary T ON C.Cno = T.Cno
+JOIN Loan_application LA ON T.Lno = LA.Lno
+WHERE LA.l_amt_required = 500000;
+
+-- 2. To display loan details from the 'Aundh' branch.
+CREATE VIEW LoansFromAundh AS
+SELECT LA.*
+FROM Loan_application LA
+JOIN Ternary T ON LA.Lno = T.Lno
+JOIN Branch B ON T.Bid = B.Bid
+WHERE B.brname = 'Aundh';
+
+-- Triggers
+-- 1. Trigger to validate the loan amount approved
+CREATE OR REPLACE FUNCTION validateLoanAmount()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.lamtapproved > NEW.l_amt_required THEN
+        RAISE EXCEPTION 'Loan amount approved must be less than or equal to loan amount required';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_loan_amount
+BEFORE INSERT OR UPDATE ON Loan_application
+FOR EACH ROW
+EXECUTE FUNCTION validateLoanAmount();
+
+-- Stored Function
+-- 2. Function to count the number of customers of a particular branch
+CREATE OR REPLACE FUNCTION countCustomersOfBranch(branchName VARCHAR)
+RETURNS INTEGER AS $$
+DECLARE
+    branchCount INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO branchCount
+    FROM Customer C
+    JOIN Ternary T ON C.Cno = T.Cno
+    JOIN Branch B ON T.Bid = B.Bid
+    WHERE B.brname = branchName;
+
+    IF branchCount IS NULL THEN
+        RAISE EXCEPTION 'Invalid branch name';
+    END IF;
+
+    RETURN branchCount;
+END;
+$$ LANGUAGE plpgsql;

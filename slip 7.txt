@@ -1,0 +1,87 @@
+-- Create tables
+CREATE TABLE Train (
+    Train_no INT PRIMARY KEY,
+    train_name VARCHAR(20),
+    depart_time TIME,
+    arrival_time TIME,
+    source_stn VARCHAR(20),
+    dest_stn VARCHAR(20),
+    no_of_res_bogies INT,
+    bogie_capacity INT
+);
+
+CREATE TABLE Passenger (
+    Passenger_id INT PRIMARY KEY,
+    passenger_name VARCHAR(20),
+    address VARCHAR(30),
+    age INT,
+    gender CHAR
+);
+
+CREATE TABLE Ticket (
+    Train_no INT REFERENCES Train(Train_no),
+    Passenger_id INT REFERENCES Passenger(Passenger_id),
+    Ticket_no INT,
+    bogie_no INT,
+    no_of_berths INT,
+    tdate DATE,
+    ticket_amt DECIMAL(7, 2),
+    ticket_status CHAR CHECK (ticket_status IN ('W', 'C')),
+    PRIMARY KEY (Train_no, Passenger_id, Ticket_no)
+);
+
+-- Create views
+-- 1. To display names of 'Shatabdi Express' passengers whose ticket status is waiting on 02-03-2022.
+CREATE VIEW ShatabdiWaitingPassengers AS
+SELECT P.passenger_name
+FROM Passenger P
+JOIN Ticket T ON P.Passenger_id = T.Passenger_id
+JOIN Train TR ON T.Train_no = TR.Train_no
+WHERE TR.train_name = 'Shatabdi Express' AND T.tdate = '2022-03-02' AND T.ticket_status = 'W';
+
+-- 2. To display first three bookings for 'Rajdhani Express' on 04-05-2021.
+CREATE VIEW RajdhaniFirstThreeBookings AS
+SELECT *
+FROM Ticket T
+JOIN Train TR ON T.Train_no = TR.Train_no
+WHERE TR.train_name = 'Rajdhani Express' AND T.tdate = '2021-05-04'
+ORDER BY T.Ticket_no
+LIMIT 3;
+
+-- Triggers
+-- 1. Trigger to restrict the bogie capacity of any train to 25.
+CREATE OR REPLACE FUNCTION restrictBogieCapacity()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.bogie_capacity > 25 THEN
+        RAISE EXCEPTION 'Bogie capacity cannot exceed 25';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER restrict_bogie_capacity
+BEFORE INSERT OR UPDATE ON Train
+FOR EACH ROW
+EXECUTE FUNCTION restrictBogieCapacity();
+
+-- Functions using cursor
+-- 2. Function to display train-wise confirmed bookings on 19-04-2022.
+CREATE OR REPLACE FUNCTION getConfirmedBookingsOnDate(dateParam DATE)
+RETURNS TABLE (Train_no INT, Passenger_id INT, Ticket_no INT, bogie_no INT, no_of_berths INT, tdate DATE, ticket_amt DECIMAL(7, 2), ticket_status CHAR) AS $$
+DECLARE
+    bookingCursor CURSOR FOR
+        SELECT *
+        FROM Ticket
+        WHERE tdate = dateParam AND ticket_status = 'C';
+    bookingRecord Ticket;
+BEGIN
+    OPEN bookingCursor;
+    LOOP
+        FETCH bookingCursor INTO bookingRecord;
+        EXIT WHEN NOT FOUND;
+        RETURN NEXT bookingRecord;
+    END LOOP;
+    CLOSE bookingCursor;
+END;
+$$ LANGUAGE plpgsql;

@@ -1,0 +1,74 @@
+-- Create tables
+CREATE TABLE Branch (
+    Bid INTEGER PRIMARY KEY,
+    brname VARCHAR(30),
+    brcity VARCHAR(10)
+);
+
+CREATE TABLE Customer (
+    Cno INTEGER PRIMARY KEY,
+    cname VARCHAR(20),
+    caddr VARCHAR(35),
+    city VARCHAR(15)
+);
+
+CREATE TABLE Loan_application (
+    Lno INTEGER PRIMARY KEY,
+    l_amt_required MONEY CHECK (l_amt_required > 0),
+    lamtapproved MONEY,
+    l_date DATE
+);
+
+-- Create ternary relationship table
+CREATE TABLE Ternary (
+    Bid INTEGER REFERENCES Branch(Bid),
+    Cno INTEGER REFERENCES Customer(Cno),
+    Lno INTEGER REFERENCES Loan_application(Lno),
+    PRIMARY KEY (Bid, Cno, Lno)
+);
+
+-- Create views
+-- 1. To display names of customers for the 'Pimpri' branch
+CREATE VIEW CustomersInPimpri AS
+SELECT C.cname
+FROM Customer C
+JOIN Ternary T ON C.Cno = T.Cno
+JOIN Branch B ON T.Bid = B.Bid
+WHERE B.brcity = 'Pimpri';
+
+-- 2. To display names of customers who have taken a loan from the branch in the same city they live
+CREATE VIEW CustomersSameCityLoanBranch AS
+SELECT C.cname
+FROM Customer C
+JOIN Ternary T ON C.Cno = T.Cno
+JOIN Branch B ON T.Bid = B.Bid
+WHERE C.city = B.brcity;
+
+-- Triggers
+-- 1. Trigger to display a message when updating customer number
+CREATE OR REPLACE FUNCTION preventCustomerNumberChange()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'You can''t change existing customer number';
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prevent_customer_number_change
+BEFORE UPDATE OF Cno ON Customer
+FOR EACH ROW
+EXECUTE FUNCTION preventCustomerNumberChange();
+
+-- Stored Function
+-- 2. Function to display loan information of a branch
+CREATE OR REPLACE FUNCTION getLoanInfoForBranch(branchName VARCHAR)
+RETURNS TABLE (Lno INTEGER, l_amt_required MONEY, lamtapproved MONEY, l_date DATE) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT LA.Lno, LA.l_amt_required, LA.lamtapproved, LA.l_date
+    FROM Loan_application LA
+    JOIN Ternary T ON LA.Lno = T.Lno
+    JOIN Branch B ON T.Bid = B.Bid
+    WHERE B.brname = branchName;
+END;
+$$ LANGUAGE plpgsql;

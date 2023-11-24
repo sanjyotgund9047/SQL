@@ -1,0 +1,91 @@
+-- Create tables
+CREATE TABLE Bus (
+    Bus_no INT PRIMARY KEY,
+    capacity INT NOT NULL,
+    depot_name VARCHAR(20)
+);
+
+CREATE TABLE Route (
+    Route_no INT PRIMARY KEY,
+    source VARCHAR(20),
+    destination VARCHAR(20),
+    no_of_stations INT
+);
+
+CREATE TABLE Driver (
+    Driver_no INT PRIMARY KEY,
+    driver_name VARCHAR(20),
+    license_no INT UNIQUE,
+    address VARCHAR(20),
+    age INT,
+    salary FLOAT
+);
+
+CREATE TABLE BusRoute (
+    Bus_no INT REFERENCES Bus(Bus_no),
+    Route_no INT REFERENCES Route(Route_no),
+    PRIMARY KEY (Bus_no, Route_no)
+);
+
+CREATE TABLE DriverBus (
+    Driver_no INT REFERENCES Driver(Driver_no),
+    Bus_no INT REFERENCES Bus(Bus_no),
+    Shift INT CHECK (Shift IN (1, 2)),
+    Date_of_duty_allotted DATE,
+    PRIMARY KEY (Driver_no, Bus_no, Shift)
+);
+
+-- Create views
+-- 1. To display details of Bus_no 102 along with details of all drivers who have driven that bus.
+CREATE VIEW Bus102Details AS
+SELECT B.*, D.*
+FROM Bus B
+JOIN DriverBus DB ON B.Bus_no = DB.Bus_no
+JOIN Driver D ON DB.Driver_no = D.Driver_no
+WHERE B.Bus_no = 102;
+
+-- 2. To display the route details on which buses of capacity 30 runs.
+CREATE VIEW RouteDetailsForCapacity30 AS
+SELECT R.*
+FROM Route R
+JOIN BusRoute BR ON R.Route_no = BR.Route_no
+JOIN Bus B ON BR.Bus_no = B.Bus_no
+WHERE B.capacity = 30;
+
+-- Triggers
+-- 1. Trigger before inserting the driver record in the driver table.
+CREATE OR REPLACE FUNCTION validateDriverSalary()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.salary <= 0 THEN
+        RAISE EXCEPTION 'Invalid Salary: Salary must be greater than zero';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_driver_salary
+BEFORE INSERT ON Driver
+FOR EACH ROW
+EXECUTE FUNCTION validateDriverSalary();
+
+-- Functions using cursor
+-- 2. Function to display all the dates on which a driver has driven a bus.
+CREATE OR REPLACE FUNCTION getDriverDates(driverName VARCHAR)
+RETURNS SETOF DATE AS $$
+DECLARE
+    dateCursor CURSOR FOR
+        SELECT DISTINCT Date_of_duty_allotted
+        FROM DriverBus
+        WHERE Driver_no = (SELECT Driver_no FROM Driver WHERE driver_name = driverName);
+    dateRecord DATE;
+BEGIN
+    OPEN dateCursor;
+    LOOP
+        FETCH dateCursor INTO dateRecord;
+        EXIT WHEN NOT FOUND;
+        RETURN NEXT dateRecord;
+    END LOOP;
+    CLOSE dateCursor;
+END;
+$$ LANGUAGE plpgsql;

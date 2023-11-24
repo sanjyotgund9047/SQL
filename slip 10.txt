@@ -1,0 +1,76 @@
+-- Create tables
+CREATE TABLE Project (
+    Pno INT PRIMARY KEY,
+    pname VARCHAR(30) NOT NULL,
+    ptype VARCHAR(20),
+    duration INTEGER
+);
+
+CREATE TABLE Employee (
+    Eno INT PRIMARY KEY,
+    ename VARCHAR(20),
+    qualification CHAR(15),
+    joining_date DATE CHECK (joining_date < CURRENT_DATE)
+);
+
+CREATE TABLE ProjectEmployee (
+    Pno INT REFERENCES Project(Pno),
+    Eno INT REFERENCES Employee(Eno),
+    start_date_of_Project DATE,
+    no_of_hours_worked INTEGER,
+    PRIMARY KEY (Pno, Eno)
+);
+
+-- Create views
+-- 1. To display employee details and it should be sorted by employee’s joining date.
+CREATE VIEW EmployeeDetailsSortedByJoiningDate AS
+SELECT *
+FROM Employee
+ORDER BY joining_date;
+
+-- 2. To display employee and project details where employees worked less than 100 hours.
+CREATE VIEW EmployeeProjectDetailsLessThan100Hours AS
+SELECT E.*, P.*, PE.no_of_hours_worked
+FROM Employee E
+JOIN ProjectEmployee PE ON E.Eno = PE.Eno
+JOIN Project P ON PE.Pno = P.Pno
+WHERE PE.no_of_hours_worked < 100;
+
+-- Triggers
+-- 1. Trigger before inserting joining date into the employee table, check joining date should be always less than the current date. Display appropriate message.
+CREATE OR REPLACE FUNCTION validateJoiningDate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.joining_date >= CURRENT_DATE THEN
+        RAISE EXCEPTION 'Invalid joining date. Joining date should be less than the current date';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_joining_date
+BEFORE INSERT OR UPDATE ON Employee
+FOR EACH ROW
+EXECUTE FUNCTION validateJoiningDate();
+
+-- Stored Function
+-- 2. Stored function to accept the project name as an input parameter and return the number of employees working on that project. Raise an exception for an invalid project name.
+CREATE OR REPLACE FUNCTION getEmployeeCountOnProject(projectName VARCHAR)
+RETURNS INTEGER AS $$
+DECLARE
+    employeeCount INTEGER;
+BEGIN
+    SELECT COUNT(DISTINCT E.Eno)
+    INTO employeeCount
+    FROM Employee E
+    JOIN ProjectEmployee PE ON E.Eno = PE.Eno
+    JOIN Project P ON PE.Pno = P.Pno
+    WHERE P.pname = projectName;
+
+    IF employeeCount = 0 THEN
+        RAISE EXCEPTION 'Invalid project name. No employees found for the specified project';
+    END IF;
+
+    RETURN employeeCount;
+END;
+$$ LANGUAGE plpgsql;

@@ -1,0 +1,74 @@
+-- Create tables
+CREATE TABLE Student (
+    Sno INTEGER PRIMARY KEY,
+    sname VARCHAR(20) NOT NULL,
+    sclass VARCHAR(10),
+    saddr VARCHAR(30)
+);
+
+CREATE TABLE Teacher (
+    Tno INTEGER PRIMARY KEY,
+    tname VARCHAR(20) NOT NULL,
+    qualification CHAR(15),
+    experience INTEGER
+);
+
+CREATE TABLE StudentTeacher (
+    Sno INTEGER REFERENCES Student(Sno),
+    Tno INTEGER REFERENCES Teacher(Tno),
+    subject VARCHAR(50) NOT NULL,
+    PRIMARY KEY (Sno, Tno)
+);
+
+-- Create views
+-- 1. To display student names who are taught by the most experienced teacher.
+CREATE VIEW StudentsTaughtByMostExperiencedTeacher AS
+SELECT S.sname, T.tname, T.experience
+FROM Student S
+JOIN StudentTeacher ST ON S.Sno = ST.Sno
+JOIN Teacher T ON ST.Tno = T.Tno
+WHERE T.experience = (SELECT MAX(experience) FROM Teacher);
+
+-- 2. To display subjects taught by each teacher.
+CREATE VIEW SubjectsTaughtByEachTeacher AS
+SELECT T.tname, ST.subject
+FROM Teacher T
+JOIN StudentTeacher ST ON T.Tno = ST.Tno;
+
+-- Triggers
+-- 1. Trigger before inserting the student record. If the sno is less than or equal to zero, then display the message 'Invalid student number'.
+CREATE OR REPLACE FUNCTION validateStudentNumber()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.Sno <= 0 THEN
+        RAISE EXCEPTION 'Invalid student number';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_student_number
+BEFORE INSERT ON Student
+FOR EACH ROW
+EXECUTE FUNCTION validateStudentNumber();
+
+-- Stored Function
+-- 2. Stored function to count the number of students studying a subject named '' (Accept the subject's name as an input parameter). Display an error message for an invalid subject name.
+CREATE OR REPLACE FUNCTION countStudentsBySubject(subjectName VARCHAR)
+RETURNS INTEGER AS $$
+DECLARE
+    studentCount INTEGER;
+BEGIN
+    SELECT COUNT(DISTINCT S.Sno)
+    INTO studentCount
+    FROM Student S
+    JOIN StudentTeacher ST ON S.Sno = ST.Sno
+    WHERE ST.subject = subjectName;
+
+    IF studentCount = 0 THEN
+        RAISE EXCEPTION 'Invalid subject name. No students found for the specified subject';
+    END IF;
+
+    RETURN studentCount;
+END;
+$$ LANGUAGE plpgsql;

@@ -1,0 +1,63 @@
+-- Create tables
+CREATE TABLE Student (
+    Rollno INTEGER PRIMARY KEY,
+    sname VARCHAR(30) NOT NULL,
+    city VARCHAR(50),
+    class VARCHAR(10)
+);
+
+CREATE TABLE Subject (
+    Scode VARCHAR(10) PRIMARY KEY,
+    subject_name VARCHAR(20)
+);
+
+CREATE TABLE StudentSubject (
+    Rollno INTEGER REFERENCES Student(Rollno),
+    Scode VARCHAR(10) REFERENCES Subject(Scode),
+    marks_scored INTEGER,
+    PRIMARY KEY (Rollno, Scode)
+);
+
+-- Create views
+-- 1. To display the students' names who scored more than 80 marks in 'DBMS' Subject.
+CREATE VIEW HighScorersInDBMS AS
+SELECT S.sname
+FROM StudentSubject SS
+JOIN Student S ON SS.Rollno = S.Rollno
+JOIN Subject SUBJ ON SS.Scode = SUBJ.Scode
+WHERE SUBJ.subject_name = 'DBMS' AND SS.marks_scored > 80;
+
+-- 2. To display student details of class 'TYBCA'.
+CREATE VIEW TYBCAStudents AS
+SELECT *
+FROM Student
+WHERE class = 'TYBCA';
+
+-- Triggers
+-- 1. Trigger after deleting a student record from the student table. Display the message "Student record is being deleted".
+CREATE OR REPLACE FUNCTION displayDeleteMessage()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE NOTICE 'Student record is being deleted';
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER display_delete_message
+AFTER DELETE ON Student
+FOR EACH ROW
+EXECUTE FUNCTION displayDeleteMessage();
+
+-- Stored Function
+-- 2. Stored function to accept student name as an input parameter and display their subject information.
+CREATE OR REPLACE FUNCTION getSubjectInformationForStudent(studentNameParam VARCHAR)
+RETURNS TABLE (subject_name VARCHAR, marks_scored INTEGER) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT SUBJ.subject_name, SS.marks_scored
+    FROM StudentSubject SS
+    JOIN Student S ON SS.Rollno = S.Rollno
+    JOIN Subject SUBJ ON SS.Scode = SUBJ.Scode
+    WHERE S.sname = studentNameParam;
+END;
+$$ LANGUAGE plpgsql;

@@ -1,0 +1,90 @@
+-- Create tables
+CREATE TABLE Bus (
+    Bus_no INT PRIMARY KEY,
+    capacity INT NOT NULL,
+    depot_name VARCHAR(20)
+);
+
+CREATE TABLE Route (
+    Route_no INT PRIMARY KEY,
+    source VARCHAR(20),
+    destination VARCHAR(20),
+    no_of_stations INT
+);
+
+CREATE TABLE Driver (
+    Driver_no INT PRIMARY KEY,
+    driver_name VARCHAR(20),
+    license_no INT UNIQUE,
+    address VARCHAR(20),
+    age INT,
+    salary FLOAT
+);
+
+CREATE TABLE BusRoute (
+    Bus_no INT REFERENCES Bus(Bus_no),
+    Route_no INT REFERENCES Route(Route_no),
+    PRIMARY KEY (Bus_no, Route_no)
+);
+
+CREATE TABLE DriverBus (
+    Driver_no INT REFERENCES Driver(Driver_no),
+    Bus_no INT REFERENCES Bus(Bus_no),
+    Shift INT CHECK (Shift IN (1, 2)),
+    Date_of_duty_allotted DATE,
+    PRIMARY KEY (Driver_no, Bus_no, Shift)
+);
+
+-- Create views
+-- 1. To display driver names working in both shifts.
+CREATE VIEW DriversInBothShifts AS
+SELECT D.driver_name
+FROM Driver D
+JOIN DriverBus DB1 ON D.Driver_no = DB1.Driver_no AND DB1.Shift = 1
+JOIN DriverBus DB2 ON D.Driver_no = DB2.Driver_no AND DB2.Shift = 2;
+
+-- 2. To display route details on which Bus_no 101 is running.
+CREATE VIEW RouteDetailsForBus101 AS
+SELECT R.*
+FROM Route R
+JOIN BusRoute BR ON R.Route_no = BR.Route_no
+WHERE BR.Bus_no = 101;
+
+-- Triggers
+-- 1. Trigger after deleting the bus record which has capacity < 20.
+CREATE OR REPLACE FUNCTION checkBusCapacity()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.capacity < 20 THEN
+        RAISE EXCEPTION 'Bus with capacity less than 20 cannot be deleted';
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_bus_capacity
+AFTER DELETE ON Bus
+FOR EACH ROW
+EXECUTE FUNCTION checkBusCapacity();
+
+-- Cursors
+-- 2. Cursor to display details of buses running on route_no = 1.
+CREATE OR REPLACE FUNCTION getBusesOnRoute1()
+RETURNS SETOF Bus AS $$
+DECLARE
+    busCursor CURSOR FOR
+        SELECT B.*
+        FROM Bus B
+        JOIN BusRoute BR ON B.Bus_no = BR.Bus_no
+        WHERE BR.Route_no = 1;
+    busRecord Bus;
+BEGIN
+    OPEN busCursor;
+    LOOP
+        FETCH busCursor INTO busRecord;
+        EXIT WHEN NOT FOUND;
+        RETURN NEXT busRecord;
+    END LOOP;
+    CLOSE busCursor;
+END;
+$$ LANGUAGE plpgsql;

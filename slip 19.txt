@@ -1,0 +1,85 @@
+-- Create tables
+CREATE TABLE Movie (
+    m_name VARCHAR(25),
+    release_year INTEGER NOT NULL,
+    budget MONEY,
+    PRIMARY KEY (m_name, release_year)
+);
+
+CREATE TABLE Actor (
+    a_name CHAR(30) PRIMARY KEY,
+    city VARCHAR(30)
+);
+
+CREATE TABLE Producer (
+    producer_id INTEGER PRIMARY KEY,
+    pname CHAR(30),
+    p_address VARCHAR(30)
+);
+
+CREATE TABLE MovieActor (
+    m_name VARCHAR(25) REFERENCES Movie(m_name),
+    release_year INTEGER REFERENCES Movie(release_year),
+    a_name CHAR(30) REFERENCES Actor(a_name),
+    role VARCHAR(20),
+    charges MONEY CHECK (charges <= 3000000),
+    PRIMARY KEY (m_name, release_year, a_name)
+);
+
+CREATE TABLE ProducerMovie (
+    producer_id INTEGER REFERENCES Producer(producer_id),
+    m_name VARCHAR(25) REFERENCES Movie(m_name),
+    release_year INTEGER REFERENCES Movie(release_year),
+    PRIMARY KEY (producer_id, m_name, release_year)
+);
+
+-- Create views
+-- 1. To display actor details who acted in the movie 'Sholay'.
+CREATE VIEW ActorInSholay AS
+SELECT a.*
+FROM Actor a
+JOIN MovieActor ma ON a.a_name = ma.a_name
+JOIN Movie m ON ma.m_name = m.m_name AND ma.release_year = m.release_year
+WHERE m.m_name = 'Sholay';
+
+-- 2. To display producer names who have produced more than two movies.
+CREATE VIEW ProducersWithMoreThanTwoMovies AS
+SELECT p.pname
+FROM Producer p
+JOIN ProducerMovie pm ON p.producer_id = pm.producer_id
+GROUP BY p.producer_id, p.pname
+HAVING COUNT(*) > 2;
+
+-- Triggers
+-- 1. Trigger before inserting charges into the relationship table. Charges should not be more than 30 lakh. Display an appropriate message.
+CREATE OR REPLACE FUNCTION validateCharges()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.charges > 3000000 THEN
+        RAISE EXCEPTION 'Invalid charges. Charges should not be more than 30 lakh.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER validate_charges
+BEFORE INSERT ON MovieActor
+FOR EACH ROW
+EXECUTE FUNCTION validateCharges();
+
+-- Stored Function
+-- 2. Stored function to accept actor name as an input parameter and display names of movies in which that actor has acted. Display an error message for an invalid actor name.
+CREATE OR REPLACE FUNCTION getMoviesByActor(actorNameParam CHAR)
+RETURNS TABLE (m_name VARCHAR, release_year INTEGER) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT m.m_name, m.release_year
+    FROM MovieActor ma
+    JOIN Movie m ON ma.m_name = m.m_name AND ma.release_year = m.release_year
+    WHERE ma.a_name = actorNameParam;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invalid actor name';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
